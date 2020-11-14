@@ -1,11 +1,10 @@
 #include <iostream>
-#include <string>
 #include <array>
+#include <random>
+#include <ctime>
+#include <string>
 #include <chrono>
 #include <thread>
-#include <random>
-#include <limits>
-#include <ctime>
 
 constexpr int maximumScore{ 21 };
 constexpr int minimumDealerScore{ 17 };
@@ -40,255 +39,261 @@ enum CardRank
     MAX_RANKS
 };
 
-enum class BlackJackResult
+enum BlackJackResult
 {
-    loss,
     win,
+    loss,
     tie
 };
-
-struct Card
+class Card
 {
-    CardRank rank;
-    CardSuit suit;
-};
-
-struct Player
-{
-    int score;
-    bool bust;
-    short aces;
-};
-
-void printCard(const Card& card)
-{
-    switch (card.rank)
+private:
+    CardRank m_rank;
+    CardSuit m_suit;
+public:
+    Card(CardRank rank, CardSuit suit) : m_rank{ rank }, m_suit{ suit }
+    {};
+    Card() = default;
+    int value() const
     {
-    case CardRank::RANK_2:
-        std::cout << '2';
-        break;
-    case CardRank::RANK_3:
-        std::cout << '3';
-        break;
-    case CardRank::RANK_4:
-        std::cout << '4';
-        break;
-    case CardRank::RANK_5:
-        std::cout << '5';
-        break;
-    case CardRank::RANK_6:
-        std::cout << '6';
-        break;
-    case CardRank::RANK_7:
-        std::cout << '7';
-        break;
-    case CardRank::RANK_8:
-        std::cout << '8';
-        break;
-    case CardRank::RANK_9:
-        std::cout << '9';
-        break;
-    case CardRank::RANK_10:
-        std::cout << 'T';
-        break;
-    case CardRank::RANK_JACK:
-        std::cout << 'J';
-        break;
-    case CardRank::RANK_QUEEN:
-        std::cout << 'Q';
-        break;
-    case CardRank::RANK_KING:
-        std::cout << 'K';
-        break;
-    case CardRank::RANK_ACE:
-        std::cout << 'A';
-        break;
-    default:
-        std::cout << '?';
-        break;
-    }
-
-    switch (card.suit)
-    {
-    case CardSuit::SUIT_CLUB:
-        std::cout << 'C';
-        break;
-    case CardSuit::SUIT_DIAMOND:
-        std::cout << 'D';
-        break;
-    case CardSuit::SUIT_HEART:
-        std::cout << 'H';
-        break;
-    case CardSuit::SUIT_SPADE:
-        std::cout << 'S';
-        break;
-    default:
-        std::cout << '?';
-        break;
-    }
-    std::cout << '\n';
-}
-
-using deck_type = std::array<Card, 52>;
-
-deck_type createDeck()
-{
-    deck_type deck;
-
-    int index{ 0 };
-    for (int i{ 0 }; i < MAX_SUITS; ++i)
-    {
-        for (int e{ 0 }; e < MAX_RANKS; ++e)
+        if (m_rank < 10)
+            return (static_cast<int>(m_rank) + 2);
+        switch (m_rank)
         {
-            deck[index].rank = static_cast<CardRank>(e);
-            deck[index].suit = static_cast<CardSuit>(i);
-            ++index;
-        }
-    }
-    return deck;
-}
-
-void printDeck(const deck_type& deck)
-{
-    for (auto& card : deck)
-        printCard(card);
-}
-
-void shuffleDeck(deck_type& deck)
-{
-    static std::mt19937 mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-    std::shuffle(deck.begin(), deck.end(), mt);
-}
-
-int getCardValue(const Card& input)
-{
-    if (input.rank < 10)
-        return (static_cast<int>(input.rank) + 2);
-    switch (input.rank)
-    {
-    //Fallthrough Intended
-    case RANK_JACK:
-    case RANK_QUEEN:
-    case RANK_KING:
-        return 10;
-        break;
-    case RANK_ACE:
-        return 11;
-        break;
-    default:
-        return 0;
-    }
-}
-
-bool playerTurn(Player& player, const deck_type& deck, int cardIndex)
-{
-    int& score{ player.score };
-    using namespace std;
-    cout << "You have a score of " << score << '\n';
-    while (score <= maximumScore)
-    {
-        std::string choice;
-        while (true)
-        {
-            cout << "Would you like to (h)it or (s)tand? -> ";
-            getline(cin, choice);
-            if (choice != "h" && choice != "s" )
-            {
-                continue;
-            }
+            //Fallthrough Intended
+        case RANK_JACK:
+        case RANK_QUEEN:
+        case RANK_KING:
+            return 10;
             break;
+        case RANK_ACE:
+            return 11;
+            break;
+        default:
+            return 0;
         }
-        while (score <= maximumScore)
+    }
+    friend std::ostream& operator<<(std::ostream& out, const Card& card);
+};
+
+class Deck
+{
+private:
+    std::array<Card, 52> m_deck;
+    int m_cardIndex{ 0 };
+public:
+    Deck()
+    {
+        int index{ 0 };
+        for (int suit{ 0 }; suit < MAX_SUITS; ++suit)
         {
-            if (choice == "h")
+            for (int rank{ 0 }; rank < MAX_RANKS; ++rank)
             {
-                int card_score = getCardValue(deck[cardIndex++]);
-                if (card_score == 11)
-                    ++player.aces;
-                score += card_score;
-                std::cout << "\nYou have a score of " << score << '\n';
+                m_deck[index] = { static_cast<CardRank>(rank), static_cast<CardSuit>(suit) };
+                ++index;
+            }
+        }
+    }
+    Deck& shuffle()
+    {
+        static std::mt19937 mt{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+        std::shuffle(m_deck.begin(), m_deck.end(), mt);
+        m_cardIndex = 0;
+        return *this;
+    }
+    Deck& print()
+    {
+        for (auto& card : m_deck)
+        {
+            std::cout << card << '\n';
+        }
+        return *this;
+    }
+    const Card& dealCard() { return m_deck[m_cardIndex++]; }
+    friend std::ostream& operator<<(std::ostream& out, const Deck& deck);
+};
+
+class Player
+{
+private:
+    int m_score{ 0 };
+    int m_aces{ 0 };
+
+    void drawCard(Deck& deck)
+    {
+        int card_val{ deck.dealCard().value() };
+        if (card_val == 11)
+            ++m_aces;
+        m_score += card_val;
+    }
+public:
+    int score() const
+    {
+        return m_score;
+    }
+    bool isBust()
+    {
+        return m_score > maximumScore ? true : false;
+    }
+    bool playerTurn(Deck& deck)
+    {
+        using namespace std;
+        cout << "You have a score of " << m_score << '\n';
+        while (!isBust())
+        {
+            string choice;
+            while (true)
+            {
+                cout << "Would you like to (h)it or (s)tand? -> ";
+                getline(cin, choice);
+                if (choice != "h" && choice != "s")
+                {
+                    continue;
+                }
                 break;
             }
-            else if (choice == "s")
+            while (!isBust())
             {
-                cout << "\nYou stand with a score of " << score << '\n';
-                return false;
+                if (choice == "h")
+                {
+                    drawCard(deck);
+                    cout << "\nYou have a score of " << m_score << '\n';
+                    break;
+                }
+                else if (choice == "s")
+                {
+                    cout << "\nYou stand with a score of " << m_score << '\n';
+                    return false;
+                }
             }
         }
+        if (m_aces > 0)
+        {
+            cout << "You have an ace.\n";
+            m_aces -= 1;
+            m_score -= 10;
+            return playerTurn(deck);
+        }
+        cout << "Bust!\n";
+        return true;
     }
-    if (player.aces > 0)
+    bool dealerTurn(Deck& deck)
     {
-        cout << "You have an ace.\n";
-        player.aces -= 1;
-        player.score -= 10;
-        return playerTurn(player, deck, cardIndex);
-    }
-    cout << "Bust!\n";
-    return true;
-}
-
-bool dealerTurn(Player& dealer, const deck_type& deck, int cardIndex)
-{
-    int& score{ dealer.score };
-    std::cout << "Dealer score is " << score << '\n';
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    while (score < minimumDealerScore)
-    {
-        int card_score{ getCardValue(deck[cardIndex++]) };
-        if (card_score == 11)
-            ++dealer.aces;
-        std::cout << "Dealer hits\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        score += card_score;
-        std::cout << "Dealer score is " << score << '\n';
+        std::cout << "Dealer score is " << m_score << '\n';
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        while (m_score < minimumDealerScore)
+        {
+            std::cout << "Dealer hits\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            drawCard(deck);
+            std::cout << "Dealer score is " << m_score << '\n';
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        }
+        std::cout << "Dealer's final score is " << m_score << '\n';
+        return isBust();
     }
-    if (score <= maximumScore)
+    friend void playBlackJack(Deck& deck);
+};
+
+std::ostream& operator<<(std::ostream& out, const Card& card)
+{
+    switch (card.m_rank)
     {
-        std::cout << "Dealer stands with score of " << score << '\n';
-        return false;
+    case CardRank::RANK_2:
+        out << '2';
+        break;
+    case CardRank::RANK_3:
+        out << '3';
+        break;
+    case CardRank::RANK_4:
+        out << '4';
+        break;
+    case CardRank::RANK_5:
+        out << '5';
+        break;
+    case CardRank::RANK_6:
+        out << '6';
+        break;
+    case CardRank::RANK_7:
+        out << '7';
+        break;
+    case CardRank::RANK_8:
+        out << '8';
+        break;
+    case CardRank::RANK_9:
+        out << '9';
+        break;
+    case CardRank::RANK_10:
+        out << '10';
+        break;
+    case CardRank::RANK_JACK:
+        out << 'J';
+        break;
+    case CardRank::RANK_QUEEN:
+        out << 'Q';
+        break;
+    case CardRank::RANK_KING:
+        out << 'K';
+        break;
+    case CardRank::RANK_ACE:
+        out << 'A';
+        break;
+    default:
+        out << '?';
+        break;
     }
-    if (dealer.aces > 0)
+
+    switch (card.m_suit)
     {
-        std::cout << "Dealer has an ace.\n";
-        dealer.aces -= 1;
-        dealer.score -= 10;
-        return dealerTurn(dealer, deck, cardIndex);
+    case CardSuit::SUIT_CLUB:
+        out << 'C';
+        break;
+    case CardSuit::SUIT_DIAMOND:
+        out << 'D';
+        break;
+    case CardSuit::SUIT_HEART:
+        out << 'H';
+        break;
+    case CardSuit::SUIT_SPADE:
+        out << 'S';
+        break;
+    default:
+        out << '?';
+        break;
     }
-    std::cout << "Dealer busts with score of " << score << '\n';
-    return true;
+    return out;
+}
+std::ostream& operator<<(std::ostream& out, const Deck& deck)
+{
+    for (auto& card : deck.m_deck)
+        out << card << '\n';
+    return out;
 }
 
-BlackJackResult playBlackJack(deck_type& deck)
+void playBlackJack(Deck& deck)
 {
     int cardIndex{ 0 };
-    Player player{ getCardValue(deck[cardIndex]) + getCardValue(deck[cardIndex + 1]) };
-    cardIndex += 2;
-    Player dealer{ getCardValue(deck[cardIndex++]) };
-    
-    player.bust = playerTurn(player, deck, cardIndex);
-    dealer.bust = dealerTurn(dealer, deck, cardIndex);
-    if (player.bust && dealer.bust || player.score == dealer.score)
-        return BlackJackResult::tie;
-    else if (player.bust && !dealer.bust)
-        return BlackJackResult::loss;
-    else if (!player.bust && dealer.bust)
-        return BlackJackResult::win;
+    Player player{};
+    player.drawCard(deck);
+    player.drawCard(deck);
+    Player dealer{};
+    dealer.drawCard(deck);
+
+    bool player_bust{ player.playerTurn(deck) };
+    bool dealer_bust{ dealer.dealerTurn(deck) };
+    if (player_bust && dealer_bust || player.m_score == dealer.m_score)
+        std::cout << "Tie!\n";
+    else if (player_bust && !dealer_bust)
+        std::cout << "Loss!\n";
+    else if (!player_bust && dealer_bust)
+        std::cout << "Win!\n";
     else
-        return (static_cast<BlackJackResult>(player.score > dealer.score));
+        player.score() > dealer.score() ? std::cout << "Win!\n" : std::cout << "Loss!\n";
 }
 
 int main()
 {
-    deck_type deck = createDeck();
-    shuffleDeck(deck);
-    BlackJackResult result{ playBlackJack(deck) };
-    if (result == BlackJackResult::win)
-        std::cout << "Win!\n";
-    else if (result == BlackJackResult::loss)
-        std::cout << "Loss!\n";
-    else if (result == BlackJackResult::tie)
-        std::cout << "Tie!\n";
-
-
+    Deck deck{};
+    deck.shuffle();
+    playBlackJack(deck);
 }
